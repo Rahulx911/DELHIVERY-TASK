@@ -1,12 +1,12 @@
 # DELHIVERY-TASK
-Task 1 — Parcel Detection & Counting
+**Task 1 — Parcel Detection & Counting**
 Objective
 
 Locate each individual parcel (carton boxes and polybags), give a distinct ID, enumerate them and mark each detection on the input image with an observable bounding box/mask and that parcel's ID stamped on the parcel.
 
-Methodology (high-level)
+**Methodology** 
 
-Employ two complementary detectors for solid coverage:
+ Employ two complementary detectors for solid coverage:
 
 Mask R-CNN for case instance masks (well suited for irregular shapes, partial occlusion).
 
@@ -20,7 +20,7 @@ Perform NMS to eliminate redundant detections.
 
 Give each remaining detection a unique ID and superimpose ID + box/mask on image. Print total count somewhere conspicuous.
 
-Algorithms & key steps
+**Algorithms & key steps**
 
 Preprocess: read image → tensor conversion → feed to models.
 
@@ -32,7 +32,7 @@ safe_nms: execute torchvision nms using NMS_IOU to retain clean set.
 
 Visualization: draw bounding box or overlay semi-transparent colored mask; place ID: # text printed on the parcel (center or top-left of bbox). Also print the total count in header.
 
-Implementation pointers (mapping to your code)
+**Implementation **
 
 Function: run_inference_single(img_path, mask_model, fast_model)
 
@@ -42,15 +42,15 @@ Post-filter and NMS: MIN_AREA_PX, MAX_AREA_RATIO, CONF_THRESH, NMS_IOU.
 
 Visual overlay: draw_detections() or draw_parcels_with_picking_sequence() with unique colors and printed ID.
 
-Outputs
+**Outputs**
 
-Per-view annotated images: with distinct bounding boxes (or masks) and printed ID on each parcel.
+Per-view annotated images: with distinct bounding boxes and printed ID on each parcel.
 
 Count printed on image and returned in function output.
 
 List of detection dictionaries for downstream tasks.
 
-Validation & checks
+**Validation & checks**
 
 Visual inspection: masks align with parcels.
 
@@ -58,12 +58,12 @@ Verify count == len(detections) printed equals number of drawn IDs.
 
 If masked parcels exhibit artifacts, increase MASK_BIN_THRESH or optimize mask resizing.
 
-Task 2 — Dimensional & Volumetric Analysis (relative / pixel-based)
+**Task 2 — Dimensional & Volumetric Analysis**
 Objective
 
 Print relative 2D dimensions (length & breadth in pixels), estimate height (depth) in pixels based on visual features, and calculate relative volume (L × B × H in pixel units) for each parcel.
 
-Method
+**Method**
 
 2D dimension measurement: Employ the axis-aligned or oriented bounding box of each bbox/mask:
 
@@ -87,20 +87,20 @@ Return a depth_confidence calculated from box area, edge-distance, and aspect ra
 
 Justification: absent metric calibration or depth sensor, these visual cues are the best stable heuristics from a single 2D image. Fusion mitigates single-cue failure modes (e.g., a small package that is low in image will have balanced estimate).
 
-Volume estimation:
+**Volume estimation:**
 
 volume_px3 = length_px * breadth_px * estimated_depth_px
 
 Also calculate a simple surface-area proxy for grasp planning.
 
-Algorithms & key steps
+**Algorithms & key steps**
 calculate_2d_dimensions(bbox) → returns length, breadth, orientation, area, aspect ratio.
 
 estimate_depth_from_perspective(bbox, img_shape, centroid) → returns estimated_depth_px, depth_confidence, depth_reasoning.
 
 calculate_volume(dimensions_2d, depth_info) → returns volume_px3, surface_area_px2.
 
-Implementation pointers
+**Implementation**
 
 Use mask if present for improved bounding box/oriented box; else use detection bbox.
 
@@ -108,13 +108,13 @@ Return human-readable depth_reasoning (e.g., "Lower position suggests closer; la
 
 Save per-parcel analysis in a structured list/dict (CSV/JSON) for downstream use.
 
-Outputs
+**Outputs**
 
 Per-parcel: length_px, breadth_px, estimated_depth_px, depth_confidence, volume_px3, and depth_reasoning.
 
 Summary stats: total estimated volume (px³), mean depth_confidence, largest/smallest parcel by volume.
 
-Validation & caveats
+**Validation**
 
 Caveat: Everything is pixel-based — only convert to metric after calibration.
 
@@ -122,12 +122,12 @@ Validate consistency between parcels: very small depth_confidence values indicat
 
 In case available, use a known-size reference or stereo/RGB-D to transform pixel volumes to real world units.
 
-Task 3 — Occlusion Analysis & Topmost Parcel Identification
+**Task 3 — Occlusion Analysis & Topmost Parcel Identification**
 Goal
 
 From the 2D images, deduce stacking order and quantitatively estimate occlusion of each parcel. Find the topmost / least occluded single parcel — the first pick candidate.
 
-Approach
+**Approach**
 
 Overlap analysis: calculate pairwise overlap between parcels (intersection area divided by the area of the occluding parcel). Gives an overlap matrix overlap[i][j] = intersection_area / area_i.
 
@@ -155,14 +155,14 @@ Accessibility score: accessibility_score = 1 − occlusion_ratio.
 
 Topmost selection: the parcel with highest accessibility_score is marked topmost.
 
-Algorithms & key steps
+**Algorithms & key steps**
 calculate_spatial_overlap_matrix(parcels) → returns overlap matrix utilized by occlusion computations.
 calculate_depth_proxy_scores(parcels, img_shape, dimensional_data) → returns per-parcel depth proxy breakdown.
 calculate_occlusion_ratios(parcels, overlap_matrix, depth_scores) → returns occlusion and accessibility results.
 
 identify_topmost_parcel(.) → returns index/ID of topmost parcel + per-parcel analysis.
 
-Outputs
+**Outputs**
 
 Per-parcel: occlusion_ratio, accessibility_score, depth_proxy_score, spatial_overlap, neighbor_count.
 
@@ -170,26 +170,20 @@ Global: topmost_parcel_id and its accessibility_score.
 
 Full overlap_matrix for diagnostics.
 
-Validation & caveats
 
-Check overlap matrix visually — pairwise overlaps should match anticipated occlusions.
 
-If large numbers of parcels indicate near-zero accessibility, try re-weighting DEPTH_WEIGHT or re-examining depth_confidence quality.
-
-Dense stacks or concave occluders can violate the simple additive occlusion model — think about temporal tracking or depth sensors to resolve ambiguity.
-
-Task 4 — Picking Sequence Optimization
+**Task 4 — Picking Sequence Optimization**
 Goal
 
 Generate a strong, ordered pick sequence for the robotic arm based on accessibility (≥70% visible to be picked) and followed by vertical order (top-down) between parcels of equal accessibility.
 
-Requirements (as you defined)
+**Requirements** 
 
 Accessibility Priority: parcels with greater accessibility_score (from Task 3) are given preference. A parcel needs to be at least 70% visible (accessibility_score >= 0.70) to qualify as pickable.
 
 Vertical Priority: among equal-access parcels, prioritize parcels higher in the image (i.e., higher in the stack).
 
-Approach
+**Approach**
 
 Construct candidate list from merged_parcels + Task2 + Task3 outputs.
 
@@ -225,7 +219,7 @@ Visual annotated bottom image with sequence numbers, colored boxes, a center bub
 
 Printable large-font table image with sequence, coords, est dims, est volume, accessibility, rationale.
 
-Algorithms & key steps
+**Algorithms & key steps**
 
 calculate_picking_priorities(parcels, dimensional_data, occlusion_analysis, img_shape) → generates candidate metadata.
 generate_optimal_picking_sequence(picking_candidates) → sorts and allocates sequence numbers.
@@ -243,7 +237,7 @@ VERTICAL_POSITION_WEIGHT = 0.4
 
 Status cutoffs: 95% (PRIORITY), 85% (HIGH), 70% (PICKABLE)
 
-Outputs
+**Outputs**
 task4_picking_sequence: ordered list with fields:
 
 sequence_number, parcel_id, priority_score, accessibility_percent, status, rationale, center_x, center_y, dimensions, is_pickable.
@@ -254,10 +248,3 @@ OUTPUT_TABLE_PATH: large-font table PNG for operator review or printing.
 
 Console summary: totals, pickable count, blocked count, success rate.
 
-Validation & caveats
-
-Verify count of PRIORITY/HIGH/PICKABLE/BLOCKED accords with expectations. If excess BLOCKED, analyze occlusion justification.
-
-Verify robot gripper and clearance constraints separately — this planner relies on top-down picks being mechanically possible.
-
-For dynamic scenes, re-plan sequence after each pick (recompute Tasks 1–3), or incorporate temporal tracking to minimize re-computation.
